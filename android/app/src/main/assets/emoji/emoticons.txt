@@ -1,0 +1,223 @@
+# Cask emoticons (kaomoji / text faces). Format:  emoticon<TAB>space separated search keywords
+# Lines starting with # are comments. The picker searches the keywords (and the emoticon text).
+# Add as many as you like — the list is loaded verbatim and is fully searchable.
+¯\_(ツ)_/¯	shrug whatever dunno idk meh
+(╯°□°)╯︵ ┻━┻	table flip flip angry rage throw
+┬─┬ ノ( ゜-゜ノ)	table unflip calm put back fix
+(ノಠ益ಠ)ノ彡┻━┻	flip table rage furious angry
+┻━┻ ︵ヽ(`Д´)ﾉ︵ ┻━┻	double flip rage angry mad
+(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧	sparkle magic excited yay tada
+(づ｡◕‿‿◕｡)づ	hug love cuddle come here
+ʕ•ᴥ•ʔ	bear cute animal
+ʕっ•ᴥ•ʔっ	bear hug cute
+(• ε •)	cute pout kiss
+(ง'̀-'́)ง	fight fists ready come at me
+(҂◡_◡) ᕤ	fight punch ready
+(° ͜ʖ °)	lenny smirk look
+( ͡° ͜ʖ ͡°)	lenny face smirk dirty
+(͠≖ ͜ʖ͠≖)	lenny suspicious wary
+(ᵔᴥᵔ)	dog puppy happy cute
+(=^･ω･^=)	cat kitty cute meow
+(=^‥^=)	cat kitty meow
+=^._.^= ∫	cat tail meow
+(=｀ω´=)	cat angry grumpy
+ฅ^•ﻌ•^ฅ	cat paws cute
+(•ω•)	cute small happy
+(´• ω •`)	cute shy soft
+(っ˘ω˘ς )	sleepy tired cozy
+(´。• ᵕ •。`)	cute happy soft
+(っ◔◡◔)っ ♥	hug love heart give
+♡(˃͈ દ ˂͈ ༘ )	love crying happy heart
+(˘▾˘)~	relaxed happy chill
+( ˘ ³˘)♥	kiss love heart
+(づ￣ ³￣)づ	kiss hug love
+( ͡~ ͜ʖ ͡°)	wink lenny flirty
+(͡• ͜໒ ͡• )	cute lenny bird
+(• o •)	surprised shock oh
+(°o°)	surprised shock wow
+(o_O)	confused what huh
+(O_o)	confused what huh
+(o.O)	confused stare
+(ಠ_ಠ)	disapproval stare serious
+(ಠ‿ಠ)	creepy smile crazy
+(ಥ﹏ಥ)	crying sad sob tears
+(ಥ_ಥ)	crying sad sob
+(T_T)	crying sad tears
+(ToT)	crying sad sob
+(;_;)	crying sad tear
+(╥﹏╥)	crying sob sad
+(っ˘̩╭╮˘̩)っ	crying hug sad
+(´；ω；`)	crying sad tears
+(/ω＼)	shy embarrassed hide
+(//▽//)	blush shy embarrassed
+(*/ω＼*)	blush shy flustered
+(⁄ ⁄•⁄ω⁄•⁄ ⁄)	blush shy flustered embarrassed
+(ノ°ο°)ノ	panic yell stress
+(╯°益°)╯	rage angry mad
+ヽ(`Д´)ﾉ	angry yell rage
+(╬ Ò﹏Ó)	angry furious mad
+(ノಠ益ಠ)ノ	angry rage flip
+(¬_¬)	annoyed unamused side eye
+(¬‿¬)	smug sneaky mischievous
+(￣ヘ￣)	annoyed unimpressed meh
+(￣︿￣)	displeased annoyed grumpy
+(－‸ლ)	facepalm why disappointed
+ლ(¯ロ¯ლ)	why facepalm despair
+(¯\(ツ)/¯)	shrug whatever idk
+ヽ(ヅ)ノ	shrug happy whatever
+(づ｡◕‿◕｡)づ	hug cute love
+\(^o^)/	yay happy cheer celebrate
+\(^▽^)/	yay happy excited cheer
+\(◎o◎)/	shock surprised wow
+ヽ(•‿•)ノ	happy chill yay
+ヽ(´▽`)/	happy joy cheer
+＼(￣▽￣)／	happy relieved yay
+(•̀ᴗ•́)و	determined ready lets go
+(งツ)ว	ready lets go fight
+( •_•)>⌐■-■	deal with it cool sunglasses
+(⌐■_■)	cool sunglasses deal with it
+( ⓛ ω ⓛ *)	cute happy soft
+( ´ ▽ ` )ﾉ	wave hi happy
+(*^▽^*)	happy cheerful smile
+(◕‿◕)	happy cute smile
+(◕ᴥ◕)	cute bear happy
+(•‿•)	smile happy content
+(´ ▽ `)	smile happy relaxed
+(^_^)	happy smile classic
+(^▽^)	happy big smile
+(^o^)	happy laugh open
+(^_~)	wink playful
+(>_<)	frustrated ouch pain
+(>﹏<)	pain frustrated cringe
+(=_=)	tired bored meh
+(-_-)	annoyed tired meh
+(-_-;)	awkward sweat nervous
+(^_^;)	awkward nervous sweat
+(・_・;)	nervous awkward unsure
+(･ω･)	cute neutral small
+(｀・ω・´)	determined serious proud
+(◔_◔)	rolling eyes unimpressed
+(✿◠‿◠)	flower happy cute
+(❁´◡`❁)	flower happy soft
+(„ᵕᴗᵕ„)	soft happy content
+(｡♥‿♥｡)	love hearts eyes adore
+(♥ω♥)	love hearts adore
+(♥‿♥)	love hearts eyes
+(づ ◕‿◕ )づ	hug love cute
+( ˘͈ ᵕ ˘͈ )	soft content blush
+(灬♥ω♥灬)	love blush hearts
+( ´∀｀)	happy relaxed smile
+(´∀`)♡	love happy heart
+ヽ(♡‿♡)ノ	love excited hearts
+(◠‿◠)	smile content happy
+(„• ֊ •„)	shy cute soft
+( ｡•́︿•̀｡)	sad pleading sorry
+(´•̥̥̥ω•̥̥̥`)	crying sad pleading
+༼ つ ◕_◕ ༽つ	give summon hug take my energy
+ヽ༼ຈل͜ຈ༽ﾉ	raise dongers hype yell
+ᕦ(ò_óˇ)ᕤ	strong flex muscles
+ᕙ(⇀‸↼‶)ᕗ	flex strong muscles
+(•̀o•́)ง	ready fight determined
+o(^▽^)o	happy excited yay
+ヾ(⌐■_■)ノ♪	dance cool music party
+♪~ ᕕ(ᐛ)ᕗ	walk whistle happy chill
+ᕕ( ᐛ )ᕗ	happy walk go
+(っ▀¯▀)つ	creep sneak watching
+( ͡ʘ ͜ʖ ͡ʘ)	lenny stare suspicious
+(ʘ‿ʘ)	creepy wide eyes happy
+(ʘᗩʘ’)	shocked scared surprised
+(◉_◉)	stare blank shock
+(@_@)	dizzy confused dazed
+(×_×)	dead exhausted ko
+(x_x)	dead tired ko
+(✖╭╮✖)	dead skull done
+(҂⌣̀_⌣́)	angry serious ready
+(ᗒᗩᗕ)՞	yell scream frustrated
+(◍•ᴗ•◍)	happy cute soft
+(„• ᴗ •„)	shy soft happy
+(｡•̀ᴗ-)✧	wink sparkle confident
+(•̀ᴗ•́)و ̑̑	determined yes lets go
+(˵ ¬ ᴗ ¬ ˵)	smug sneaky pleased
+(¬ ‿ ¬ )	smug sneaky sly
+( ˙▿˙ )	happy simple content
+( ´ω` )	calm content soft
+( ˘ω˘ )	sleepy calm content
+(˘･ᴗ･˘)	content shy happy
+(｡ŏ﹏ŏ)	worried sad anxious
+(◞‸◟；)	sad disappointed down
+(´-ω-`)	tired sigh sleepy
+(¦3[▓▓]	sleep lying tired bed
+(-, - )…zzzZZZ	sleep tired snore
+(￣o￣) zzZZzzZZ	sleep snore tired
+(っ-, ‿ ,-)っ	hug comfort sad
+(つ﹏⊂)	cry wipe tears sad
+(ᗒᗧᗕ)	yell determined go
+ᕦ(̀-́)ᕤ	flex strong determined
+(• ̀ω•́ )✧	determined sparkle ready
+(ﾉ•ω•)ﾉ	throw wave excited
+ヽ(°〇°)ノ	shock surprised whoa
+(⊙_⊙)	wide eyes shock stare
+(⊙﹏⊙)	worried shock anxious
+(◑‿◐)	playful silly goofy
+(¬▂¬)	suspicious annoyed side eye
+(눈‸눈)	displeased serious meh
+(•́︵•̀)	sad disappointed frown
+(◞ ◟)	worried down sad
+(；⌣̀_⌣́)	nervous worried sweat
+(◕д◕)	shock worried surprised
+(ㆆ_ㆆ)	suspicious wary stare
+(ᵔ◡ᵔ)	content happy soft
+(„ᵕ ᴗ ᵕ„)	soft happy blush
+( ꈍ◡ꈍ)	content happy soft
+(｡•ω•｡)	cute happy small
+(„• ω •„)	shy cute soft
+(*•̀ᴗ•́*)و	determined ready cute
+(◍ ´꒳` ◍)	soft cute happy
+( ˶ˆ꒳ˆ˵ )	shy happy cute
+(´｡• ᵕ •｡`)	soft cute happy
+( ´͈ ᵕ `͈ )	soft content blush
+( ⸝⸝•ᴗ•⸝⸝ )	shy soft cute
+ᯣ(ᴖ̮ ̮ᴖ)	cute happy soft
+:)	smile happy classic ascii
+:-)	smile happy classic
+:D	grin happy laugh
+:-D	grin happy laugh
+:(	sad frown unhappy
+:-(	sad frown unhappy
+;)	wink flirty playful
+;-)	wink flirty
+:P	tongue silly playful
+:-P	tongue silly
+xD	laugh hard lol
+XD	laugh hard lol
+:'(	crying sad tears
+:')	happy tears touched
+:o	surprised shock oh
+:O	surprised shock wow
+:|	neutral meh blank
+:/	unsure skeptical meh
+:\	unsure skeptical
+:*	kiss love
+<3	heart love like
+</3	heartbroken sad
+:3	cute playful kitty
+>:(	angry mad grr
+>:)	evil mischievous devil
+o/	wave hi hello
+\o	wave hi bye
+\o/	cheer yay celebrate
+^^	happy smile content
+^_^	happy smile content
+-_-	annoyed unamused meh
+T_T	crying sad tears
+o_o	confused stare blank
+O_O	shock wide eyes
+uwu	cute soft adorable
+owo	curious surprised cute
+:>	smug happy sly
+:<	sad pouty upset
+=)	smile happy
+=D	grin happy laugh
+=(	sad frown
+B)	cool sunglasses
+8)	cool sunglasses nerd

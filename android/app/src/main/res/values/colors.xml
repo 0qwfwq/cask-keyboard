@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Cask "liquid glass" design tokens. These are the single source of truth for the
+      palette; CaskTheme.kt reads them at runtime and blends the glass tints toward an
+      accent extracted from the user's wallpaper. Surfaces (keys, pills, the keyboard
+      background) are built programmatically in CaskTheme so opacity/corner-radius can
+      vary per role and per blur-support.
+    -->
+
+    <!-- Background base: deep navy-blacks, never pure black ("void" / "deepVoid") -->
+    <color name="bg_void">#FF0F1B2D</color>
+    <color name="bg_deep_void">#FF0A1220</color>
+
+    <!-- Accents -->
+    <color name="pulse_blue">#FF4F8EF7</color>   <!-- primary: key actions / highlights -->
+    <color name="pulse_purple">#FF7C5CF7</color> <!-- secondary: AI / secondary surfaces -->
+    <color name="teal">#FF3DD6C8</color>         <!-- tertiary: informational -->
+
+    <!-- Semantic -->
+    <color name="confirm">#FF4FD17A</color>
+    <color name="caution">#FFF7874F</color>
+    <color name="alert">#FFF75F5F</color>
+
+    <!-- Text: white-with-alpha over dark, never pure gray -->
+    <color name="text_primary">#FFFFFFFF</color>   <!-- 100% -->
+    <color name="text_secondary">#B3FFFFFF</color> <!-- 70% -->
+    <color name="text_tertiary">#66FFFFFF</color>  <!-- 40% -->
+
+    <!-- Glass: near-white tint (CaskTheme re-applies role opacity + 15% wallpaper bleed) -->
+    <color name="glass_white">#FFFFFFFF</color>
+    <color name="hairline">#14FFFFFF</color>       <!-- 0.5dp border, white @ 8% -->
+</resources>
