@@ -80,8 +80,14 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
         /** A clipboard image/screenshot was chosen; insert it as rich content (or fall back). */
         fun onPickImage(file: File)
 
-        /** The web-search tool chip was tapped (placeholder for now). */
-        fun onWebSearch()
+        /** The Fix tool chip was tapped: clean up the whole field's text with the on-device model. */
+        fun onFixText()
+
+        /** Sliding on the spacebar: move the text cursor [delta] characters (±1 per step). */
+        fun onCursorMove(delta: Int)
+
+        /** Delete kept held past the per-character phase: remove the whole previous word. */
+        fun onDeleteWord()
 
         /** The spacebar was held: enter voice-to-type mode (the service starts the recognizer). */
         fun onVoiceStart()
@@ -123,10 +129,17 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
     )
 
     /** Per-finger state while a key is held: its key plus any pending hold/repeat callbacks. */
-    private class Pointer(val key: TouchKey) {
+    private class Pointer(val key: TouchKey, val downX: Float) {
         var longFired = false
         var longRunnable: Runnable? = null
         var repeatRunnable: Runnable? = null
+
+        // Spacebar cursor control: sliding sideways on the spacebar moves the text cursor.
+        var cursorMode = false
+        var cursorAnchorX = 0f
+
+        // Held delete escalates from characters to whole words after enough repeats.
+        var deleteRepeats = 0
     }
 
     private var mode = Mode.LETTERS
@@ -165,7 +178,7 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
     private var suggestionStrip: LinearLayout? = null
     private var currentSuggestions: List<String> = emptyList()
     private var currentAddWord = false                // true => last chip is the "+" add-to-dictionary button
-    private var toolsMode = false                     // true => strip shows the web/translate/clipboard tools
+    private var toolsMode = false                     // true => strip shows the fix/translate/clipboard tools
     private val tmpRect = Rect()
 
     // Floating "key preview" bubble shown above a key while it is held (e.g. comma -> em dash).
@@ -375,7 +388,7 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
         // typing. The tapped key must NOT also act (no character is typed) — the touch is consumed
         // purely to dismiss voice mode, so the next tap types normally.
         if (voiceActive && key !== spaceKeyRef) { exitVoiceMode(); return }
-        val p = Pointer(key)
+        val p = Pointer(key, x)
         pointers[id] = p
         key.view.isPressed = true
         pressDown(key.view)
@@ -392,8 +405,18 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
                 emitDelete()
                 val r = object : Runnable {
                     override fun run() {
-                        emitDelete()
-                        mainHandler.postDelayed(this, DELETE_REPEAT_MS)
+                        // After enough per-character repeats a held delete escalates to whole words
+                        // (like GBoard), so clearing a long stretch doesn't take forever. Word mode
+                        // stays out of the picker-search / translate sinks, which expect characters.
+                        p.deleteRepeats++
+                        if (p.deleteRepeats >= WORD_DELETE_AFTER && !translateActive && searchDeleteSink == null) {
+                            haptics.keyTap()
+                            actionListener?.onDeleteWord()
+                            mainHandler.postDelayed(this, WORD_DELETE_REPEAT_MS)
+                        } else {
+                            emitDelete()
+                            mainHandler.postDelayed(this, DELETE_REPEAT_MS)
+                        }
                     }
                 }
                 p.repeatRunnable = r
@@ -461,6 +484,7 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
             if (idx >= 0) addGesturePoint(ev.getX(idx), ev.getY(idx))
             return
         }
+        handleSpaceCursorSlide(ev)
         // Watching a lone finger to see if it slides off its letter into a glide.
         if (gestureCandidateId == -1) return
         val idx = ev.findPointerIndex(gestureCandidateId)
@@ -470,6 +494,40 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
         if (hypot((x - gestureStartX).toDouble(), (y - gestureStartY).toDouble()) < theme.dp(GESTURE_START_DP)) return
         val now = nearestProximityKey(x, y)
         if (now != null && now.kind == Kind.LETTER && now !== gestureStartKey) beginGesture(x, y)
+    }
+
+    /**
+     * GBoard-style cursor control: a finger that lands on the spacebar and slides sideways moves the
+     * text cursor one character per [CURSOR_STEP_DP] of travel instead of typing a space. Entering the
+     * slide cancels the voice-typing long-press and marks the touch consumed, so lifting the finger
+     * afterwards types nothing. Disabled while dictating (a spacebar tap means pause/resume there).
+     */
+    private fun handleSpaceCursorSlide(ev: MotionEvent) {
+        // Not while dictating (spacebar = pause there), and not while typing is routed into the
+        // picker's search box or the translator — the cursor being moved wouldn't be the one visible.
+        if (voiceActive || pickerOpen || translateActive || searchSink != null) return
+        for (i in 0 until ev.pointerCount) {
+            val p = pointers[ev.getPointerId(i)] ?: continue
+            if (p.key.kind != Kind.SPACE) continue
+            val x = ev.getX(i)
+            if (!p.cursorMode) {
+                if (kotlin.math.abs(x - p.downX) < theme.dp(CURSOR_START_DP)) continue
+                p.cursorMode = true
+                p.longFired = true // consumed by the slide: no voice mode, no space on release
+                p.longRunnable?.let { mainHandler.removeCallbacks(it) }
+                p.cursorAnchorX = x
+                haptics.keyTap()
+            }
+            val step = theme.dp(CURSOR_STEP_DP).toFloat()
+            while (x - p.cursorAnchorX >= step) {
+                actionListener?.onCursorMove(1)
+                p.cursorAnchorX += step
+            }
+            while (p.cursorAnchorX - x >= step) {
+                actionListener?.onCursorMove(-1)
+                p.cursorAnchorX -= step
+            }
+        }
     }
 
     /** Promote the candidate finger to a glide: stop typing keys, undo the first letter, start the trail. */
@@ -719,7 +777,7 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
     }
 
     /**
-     * Toggle the tools row (web / translate / clipboard) on/off in place of the suggestions. Driven by
+     * Toggle the tools row (fix / translate / clipboard) on/off in place of the suggestions. Driven by
      * the strip's far-left [toggleChip]: tap once to reveal the tools, tap again to return to the
      * autocorrect suggestions. Tools mode persists across keystrokes (it isn't auto-dismissed) so it
      * stays put while the user reaches for a tool.
@@ -743,12 +801,12 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
 
     /**
      * Fill [strip]: a persistent far-left [toggleChip] that flips modes, then either the tools row
-     * (web / translate / clipboard) when [toolsMode], or [currentSuggestions] (+ the "+" chip).
+     * (fix / translate / clipboard) when [toolsMode], or [currentSuggestions] (+ the "+" chip).
      */
     private fun renderChips(strip: LinearLayout) {
         strip.addView(toggleChip()) // far-left: switch between suggestions and the tools row
         if (toolsMode) {
-            strip.addView(toolIconChip(R.drawable.ic_tool_web) { actionListener?.onWebSearch() }) // search the web
+            strip.addView(toolIconChip(R.drawable.ic_tool_fix) { actionListener?.onFixText() })   // fix the typed text
             strip.addView(toolChip("文A", active = translateActive) { toggleTranslateMode() })      // translate (on/off)
             strip.addView(toolIconChip(R.drawable.ic_tool_clipboard) { openClipboard() })         // clipboard history
             return
@@ -784,7 +842,7 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
     }
 
     /**
-     * A tool button in the strip (web / translate / clipboard), hit-tested like a suggestion chip.
+     * A tool button in the strip (fix / translate / clipboard), hit-tested like a suggestion chip.
      * When [active] (the translate toggle is on) it takes the accent surface so its on/off state reads.
      */
     private fun toolChip(label: String, active: Boolean = false, fire: () -> Unit): TextView {
@@ -807,7 +865,7 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
     }
 
     /**
-     * A tool button that shows a minimalistic monochrome line icon (web / clipboard) instead of an
+     * A tool button that shows a minimalistic monochrome line icon (fix / clipboard) instead of an
      * emoji glyph. The vector is tinted to the theme's text colour so it sits flat alongside the
      * translate glyph, hit-tested like any other chip.
      */
@@ -1414,6 +1472,10 @@ class CaskKeyboardView(context: Context) : LinearLayout(context) {
         const val GESTURE_START_DP = 14 // finger travel (dp) before a key press becomes a glide
         const val DELETE_INITIAL_MS = 400L
         const val DELETE_REPEAT_MS = 50L
+        const val WORD_DELETE_AFTER = 18    // char repeats before a held delete jumps to whole words
+        const val WORD_DELETE_REPEAT_MS = 160L
+        const val CURSOR_START_DP = 12      // sideways travel on the spacebar before cursor mode engages
+        const val CURSOR_STEP_DP = 13       // travel per one-character cursor step
         const val EM_DASH = "—" // —
         const val PANEL_BROWSE_DP = 280 // picker height when browsing (no keys shown)
         const val PANEL_SEARCH_DP = 190 // picker results height when keys are revealed for search

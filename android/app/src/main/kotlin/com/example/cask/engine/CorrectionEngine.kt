@@ -174,8 +174,12 @@ class CorrectionEngine private constructor(
     }
 
     /** Strip contents when idle (no word in progress): next-word predictions. */
-    fun idleSuggestions(capitalize: Boolean): List<String> =
-        lm.predictNext(prev1, prev2, 3).map { if (capitalize) it.replaceFirstChar(Char::uppercase) else it }
+    fun idleSuggestions(capitalize: Boolean): List<String> {
+        // At a sentence start the last committed word sits on the other side of the boundary, so its
+        // successors are the wrong signal — predict sentence starters instead.
+        val preds = if (capitalize) lm.predictNext(null, null, 3) else lm.predictNext(prev1, prev2, 3)
+        return preds.map { if (capitalize) it.replaceFirstChar(Char::uppercase) else it }
+    }
 
     /** Explicitly add the word currently being composed to the personal dictionary (the "+" chip). */
     fun addCurrentWordToDictionary(): String? {
@@ -272,6 +276,18 @@ class CorrectionEngine private constructor(
         return CommitDecision(raw, picked, autoCorrected = false)
     }
 
+    /**
+     * A boundary character was committed after the word. A sentence ender (or newline) closes the
+     * sentence: the words before it are the wrong context for what comes next, so drop them (the
+     * n-gram models were trained per sentence too). Commas/quotes keep the context flowing.
+     */
+    fun noteTerminator(terminator: CharSequence) {
+        if (terminator.any { it in SENTENCE_END || it == '\n' }) {
+            prev1 = null
+            prev2 = null
+        }
+    }
+
     /** The user reverted an auto-correction: stop making it, and treat their spelling as intended. */
     fun noteRevert(original: String, corrected: String) {
         val o = original.lowercase()
@@ -308,6 +324,50 @@ class CorrectionEngine private constructor(
         while (history.size > HISTORY) history.removeFirst()
     }
 
+    // ---- Whole-text fixing (the tools-row "Fix" action) --------------------
+
+    /** Run the whole-text Fix pass (spelling + spacing + capitalization) over [text]. All local. */
+    fun fixText(text: String): String =
+        TextFixer.fix(text) { raw, p1, p2, allowStatistical -> fixWord(raw, p1, p2, allowStatistical) }
+
+    /**
+     * Stateless single-word fix used by [fixText]: the corrected form of [raw] given the two
+     * preceding words, or null to leave it alone. Same policy as a boundary commit (curated table,
+     * then the statistical noisy-channel model, then the missing-space split) but with no learning
+     * and no composing state, so already-written text can be re-checked safely. When
+     * [allowStatistical] is false (likely proper noun) only curated corrections may fire.
+     */
+    fun fixWord(raw: String, p1: String?, p2: String?, allowStatistical: Boolean = true): String? {
+        val typed = raw.lowercase()
+        if (typed.isEmpty()) return null
+        if (typed == "i") return if (raw == "I") null else "I"
+        val fix = CommonCorrections.lookup(typed)
+        if (fix != null) {
+            if (!fix.auto || store.isConfirmed(typed) || store.isBlocked(typed, fix.to.lowercase())) return null
+            return recaseCurated(raw, fix.to).takeIf { it != raw }
+        }
+        if (!allowStatistical) return null
+        if (!isAlphabetic(typed) || typed.length < MIN_AUTO_LEN || hasProtectedCase(raw)) return null
+        // Fast path: words the auto-apply policy could never touch (owned, protected, or too common)
+        // skip the candidate search entirely, so fixing a long text stays quick.
+        if (store.isConfirmed(typed) || typed in PROTECTED_WORDS) return null
+        if (dict.isKnown(typed) && dict.baseCount(typed) > TYPED_FREQ_CEILING) return null
+
+        val ranked = corrections(typed, p1, p2, touch = null, hist = emptyList())
+        val best = ranked.firstOrNull { it.word != typed }
+        val typedScore = ranked.firstOrNull { it.word == typed }?.score
+            ?: (EditModel.logProb(typed, typed) + lm.contextLogProb(typed, p1, p2))
+        val applySingle = best != null && shouldAutoApply(typed, best, typedScore)
+        val singleScore = if (applySingle) best!!.score else Double.NEGATIVE_INFINITY
+        val split = if (!dict.isKnown(typed) && !store.isConfirmed(typed)) bestSplit(typed, p1, p2) else null
+        return when {
+            split != null && split.score > singleScore && split.score > typedScore + SPLIT_MARGIN ->
+                recaseSplit(raw, split.left, split.right)
+            applySingle -> recase(raw, best!!.word).takeIf { it != raw }
+            else -> null
+        }
+    }
+
     // ---- Auto-capitalization ----------------------------------------------
 
     /** Whether the next typed letter should be capitalized (sentence start). */
@@ -328,7 +388,9 @@ class CorrectionEngine private constructor(
      * Both halves must be in the dictionary; the pair is scored by the language model — `P(left|ctx)` +
      * `P(right|left)` — plus a fixed missing-space penalty so it competes fairly with a single-word fix.
      */
-    private fun bestSplit(typed: String): Split? {
+    private fun bestSplit(typed: String): Split? = bestSplit(typed, prev1, prev2)
+
+    private fun bestSplit(typed: String, p1: String?, p2: String?): Split? {
         if (typed.length < SPLIT_MIN_LEN) return null
         var best: Split? = null
         for (i in 1 until typed.length) {
@@ -336,7 +398,7 @@ class CorrectionEngine private constructor(
             val r = typed.substring(i)
             if (!okSplitPart(l) || !okSplitPart(r)) continue
             if (!dict.isKnown(l) || !dict.isKnown(r)) continue
-            val score = lm.contextLogProb(l, prev1, prev2) + lm.contextLogProb(r, l, prev1) + SPLIT_PENALTY
+            val score = lm.contextLogProb(l, p1, p2) + lm.contextLogProb(r, l, p1) + SPLIT_PENALTY
             if (best == null || score > best.score) best = Split(l, r, score)
         }
         return best
@@ -345,7 +407,12 @@ class CorrectionEngine private constructor(
     /** A split half is acceptable if it's a multi-letter word, or one of the only sensible single letters. */
     private fun okSplitPart(p: String): Boolean = p.length >= 2 || p == "a" || p == "i"
 
-    private fun corrections(typed: String): List<Cand> {
+    private fun corrections(typed: String): List<Cand> =
+        corrections(typed, prev1, prev2, touchPath(), history.toList())
+
+    private fun corrections(
+        typed: String, p1: String?, p2: String?, touch: List<PointF>?, hist: List<String>,
+    ): List<Cand> {
         val byCost = HashMap<String, Double>()
         dict.trie.fuzzySearch(typed, EditModel.budgetFor(typed)) { word, cost, _ ->
             val prev = byCost[word]
@@ -357,13 +424,24 @@ class CorrectionEngine private constructor(
         // else the discrete proximity model. The discrete `cost` is still used for the auto-apply
         // distance ceilings in shouldAutoApply.
         val words = byCost.entries.sortedBy { it.value }.take(MAX_CANDIDATES).map { it.key }
-        val neural = rescorer.rescore(history.toList(), words)
-        val touch = touchPath()
+        val neural = rescorer.rescore(hist, words)
         return words.mapIndexed { i, w ->
             val errLog = if (touch != null) EditModel.spatialLogProb(touch, w) else EditModel.logProb(typed, w)
-            val score = errLog + lm.contextLogProb(w, prev1, prev2) + neural[i]
+            val score = errLog + firstCharPenalty(typed, w) + lm.contextLogProb(w, p1, p2) + neural[i]
             Cand(w, EditModel.cost(typed, w), score)
         }.sortedByDescending { it.score }
+    }
+
+    /**
+     * People almost never miss the *first* key of a word, so candidates that change it are less
+     * likely than the raw edit distance suggests. Penalise a first-letter mismatch unless it's
+     * plausibly a slip (physical neighbours) or a swap of the first two letters ("hte" → "the").
+     */
+    private fun firstCharPenalty(typed: String, cand: String): Double {
+        if (typed.isEmpty() || cand.isEmpty() || typed[0] == cand[0]) return 0.0
+        if (KeyGeometry.areNeighbors(typed[0], cand[0])) return 0.0
+        if (typed.length >= 2 && cand.length >= 2 && typed[0] == cand[1] && typed[1] == cand[0]) return 0.0
+        return FIRST_CHAR_PENALTY
     }
 
     private fun completions(typed: String): List<Cand> {
@@ -509,9 +587,13 @@ class CorrectionEngine private constructor(
         // web-corpus entries can't shield themselves after a single accidental commit.
         private const val TRUST_FREQ = 5_000_000.0
 
-        // Temporary: log each commit decision to logcat (`adb logcat -s CaskAC`) to diagnose why a word
-        // is / isn't auto-corrected on-device. Flip to false (or remove) once behaviour is confirmed.
-        private const val DEBUG_AC = true
+        // Log each commit decision to logcat (`adb logcat -s CaskAC`) to diagnose why a word is /
+        // isn't auto-corrected on-device. Off for normal use.
+        private const val DEBUG_AC = false
+
+        // Applied when a candidate changes the typed word's first letter (see [firstCharPenalty]):
+        // first-key misses are rare, so such candidates need clearly better evidence elsewhere.
+        private const val FIRST_CHAR_PENALTY = -0.9
 
         // Dominant-neighbour override for dictionary words (e.g. thier -> their), a frequency-only fallback.
         private const val GENERIC_OVERRIDE_MIN_LEN = 3

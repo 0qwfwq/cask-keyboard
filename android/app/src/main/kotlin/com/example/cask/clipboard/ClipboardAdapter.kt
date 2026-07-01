@@ -89,7 +89,10 @@ class ClipboardAdapter(
         } else {
             holder.image.visibility = android.view.View.GONE
             holder.text.visibility = android.view.View.VISIBLE
-            holder.text.text = entry.text
+            // Preview formatting: copied text often carries newlines / indentation / runs of spaces
+            // (code, articles, spreadsheets cells). Collapse all whitespace to single spaces so the
+            // card shows a clean, dense preview — pasting still inserts the original text verbatim.
+            holder.text.text = entry.text?.let { condensed(it) }
         }
         holder.badge.visibility = if (entry.pinned) android.view.View.VISIBLE else android.view.View.GONE
         holder.itemView.setOnClickListener { onPick(entry) }
@@ -100,6 +103,12 @@ class ClipboardAdapter(
         }
     }
 
+    private fun condensed(text: String): String = text.replace(WHITESPACE_RUN, " ").trim()
+
     class VH(card: FrameLayout, val image: ImageView, val text: TextView, val badge: TextView) :
         RecyclerView.ViewHolder(card)
+
+    private companion object {
+        val WHITESPACE_RUN = Regex("\\s+")
+    }
 }

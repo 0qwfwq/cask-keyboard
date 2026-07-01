@@ -87,9 +87,13 @@ A **noisy-channel model**: it commits `argmax score(candidate) = logP(typed|cand
   traced path against each plausible word's ideal path-through-its-key-centres on a *location* and a
   *shape* channel, pruned to words that start/end near the gesture endpoints, with the language model
   breaking ties. Lives behind `CorrectionEngine.gestureCandidates(...)`.
+- `TextFixer.kt` — the tools-row **Fix** action: a one-tap cleanup pass over the whole field (every
+  word re-checked through `CorrectionEngine.fixWord` with n-gram context, plus spacing / punctuation /
+  capitalization rules). URLs, emails, @handles, numbers, emoticons and likely proper nouns are left
+  alone. Runs on a background thread in the service (`onFixText`); fully on-device.
 - `CorrectionEngine.kt` — the orchestrator the service talks to. Owns the composing word + context;
-  returns strip suggestions, the per-boundary `CommitDecision`, and glide-typing candidates. Built via
-  `load(context)`.
+  returns strip suggestions, the per-boundary `CommitDecision`, glide-typing candidates, and the
+  stateless `fixWord`/`fixText` behind the Fix tool. Built via `load(context)`.
 
 ### Emoji / GIF / emoticon picker (`emoji/`)
 `EmojiPanel.kt` is the picker UI (3 tabs). Data is parsed from assets at runtime:

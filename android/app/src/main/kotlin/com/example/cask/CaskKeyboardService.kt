@@ -7,10 +7,13 @@ import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.graphics.PointF
 import android.inputmethodservice.InputMethodService
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -26,6 +29,7 @@ import com.example.cask.voice.VoiceCommands
 import com.example.cask.voice.VoiceInputController
 import com.example.cask.voice.VoicePermissionActivity
 import java.io.File
+import java.util.concurrent.Executors
 
 /**
  * The core of the keyboard.
@@ -50,6 +54,14 @@ class CaskKeyboardService : InputMethodService(), CaskKeyboardView.OnKeyboardAct
     private var keyboardView: CaskKeyboardView? = null
     private lateinit var engine: CorrectionEngine
     private val gifInserter by lazy { GifInserter(this) }
+
+    // The Fix tool re-scores every word in the field, which can take a moment on long text; run it
+    // off the UI thread and apply the result back on it (checking the field hasn't changed meanwhile).
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val fixExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "cask-fix").apply { isDaemon = true }
+    }
+    private var fixRunning = false
 
     // Clipboard history (powers the clipboard tool in the suggestion strip). We snapshot the system
     // clip whenever it changes and when the keyboard regains focus, keeping the last 12 hours on-device.
@@ -129,6 +141,7 @@ class CaskKeyboardService : InputMethodService(), CaskKeyboardView.OnKeyboardAct
     override fun onDestroy() {
         voice?.stop()
         voice = null
+        fixExecutor.shutdownNow()
         clipboardManager?.let { runCatching { it.removePrimaryClipChangedListener(clipChangedListener) } }
         super.onDestroy()
     }
@@ -179,6 +192,7 @@ class CaskKeyboardService : InputMethodService(), CaskKeyboardView.OnKeyboardAct
         val decision = finishComposing(ic)
         val terminator = commitTerminator(ic, text)
         ic.endBatchEdit()
+        engine.noteTerminator(terminator) // a sentence ender closes the n-gram context
 
         pendingRevert = if (decision != null && decision.autoCorrected) {
             PendingRevert(decision.original, decision.output, terminator.length)
@@ -227,6 +241,7 @@ class CaskKeyboardService : InputMethodService(), CaskKeyboardView.OnKeyboardAct
             ic.beginBatchEdit()
             finishComposing(ic)
             ic.endBatchEdit()
+            engine.noteTerminator("\n") // a new line starts a new thought: drop the word context
         }
         pendingRevert = null
 
@@ -282,9 +297,99 @@ class CaskKeyboardService : InputMethodService(), CaskKeyboardView.OnKeyboardAct
         insertImage(ic, file)
     }
 
-    override fun onWebSearch() {
-        // Placeholder — web search from the keyboard is wired up later.
-        toast("Web search coming soon")
+    /**
+     * The Fix tool: read everything in the field, run the on-device cleanup model over it
+     * ([CorrectionEngine.fixText] — spelling, spacing, capitalization; nothing leaves the device),
+     * and replace the field's text with the fixed version in one edit.
+     */
+    override fun onFixText() {
+        val ic = currentInputConnection ?: return
+        if (fixRunning) return
+        ic.beginBatchEdit()
+        if (correctionEnabled) finishComposing(ic)
+        ic.endBatchEdit()
+        pendingRevert = null
+
+        val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
+        val original = extracted?.text?.toString()
+        if (original == null) { toast("Can't read this field"); return }
+        if (original.isBlank()) { toast("Nothing to fix yet"); return }
+        if (original.length > MAX_FIX_CHARS) { toast("Too much text to fix in one go"); return }
+        val start = extracted!!.startOffset // non-null: original came from it
+
+        fixRunning = true
+        fixExecutor.execute {
+            val fixed = runCatching { engine.fixText(original) }.getOrDefault(original)
+            mainHandler.post {
+                fixRunning = false
+                val icNow = currentInputConnection ?: return@post
+                if (fixed == original) { toast("Looks good — nothing to fix"); return@post }
+                // Only apply if the field still holds exactly what we fixed (the user kept typing?).
+                val nowText = icNow.getExtractedText(ExtractedTextRequest(), 0)?.text?.toString()
+                if (nowText != original) { toast("Text changed — tap fix again"); return@post }
+                icNow.beginBatchEdit()
+                if (icNow.setComposingRegion(start, start + original.length)) {
+                    icNow.setComposingText(fixed, 1)
+                    icNow.finishComposingText()
+                } else {
+                    // Editor without composing-region support: replace around the cursor instead.
+                    val before = icNow.getTextBeforeCursor(original.length, 0)?.length ?: 0
+                    val after = icNow.getTextAfterCursor(original.length, 0)?.length ?: 0
+                    icNow.deleteSurroundingText(before, after)
+                    icNow.commitText(fixed, 1)
+                }
+                icNow.endBatchEdit()
+                if (correctionEnabled) {
+                    engine.resetContext(icNow.getTextBeforeCursor(CONTEXT_CHARS, 0))
+                    refreshIdle()
+                }
+            }
+        }
+    }
+
+    /** Spacebar cursor control: shift the cursor left/right, first finishing any composing word. */
+    override fun onCursorMove(delta: Int) {
+        val ic = currentInputConnection ?: return
+        if (engine.hasComposing()) {
+            // The user is steering away from the in-progress word: keep it exactly as typed.
+            ic.finishComposingText()
+            engine.clearComposing()
+        }
+        pendingRevert = null
+        sendDownUpKeyEvents(if (delta > 0) KeyEvent.KEYCODE_DPAD_RIGHT else KeyEvent.KEYCODE_DPAD_LEFT)
+        if (correctionEnabled) {
+            engine.resetContext(ic.getTextBeforeCursor(CONTEXT_CHARS, 0))
+            refreshIdle()
+        }
+    }
+
+    /** Held delete escalated to word mode: remove the previous word (or the composing one) at once. */
+    override fun onDeleteWord() {
+        val ic = currentInputConnection ?: return
+        pendingRevert = null
+        if (correctionEnabled && engine.hasComposing()) {
+            engine.clearComposing()
+            ic.setComposingText("", 1)
+            ic.finishComposingText()
+            refreshIdle()
+            return
+        }
+        val before = ic.getTextBeforeCursor(WORD_DELETE_LOOKBACK, 0)?.toString().orEmpty()
+        if (before.isEmpty()) return
+        val n = before.length
+        var i = n
+        while (i > 0 && before[i - 1].isWhitespace()) i--
+        if (i > 0) {
+            val word = before[i - 1].isLetterOrDigit()
+            while (i > 0 && !before[i - 1].isWhitespace() &&
+                (before[i - 1].isLetterOrDigit() || before[i - 1] == '\'') == word
+            ) i--
+        }
+        ic.deleteSurroundingText(n - i, 0)
+        if (correctionEnabled) {
+            engine.resetContext(ic.getTextBeforeCursor(CONTEXT_CHARS, 0))
+            refreshIdle()
+        }
     }
 
     /**
@@ -576,7 +681,7 @@ class CaskKeyboardService : InputMethodService(), CaskKeyboardView.OnKeyboardAct
     private fun refreshIdle() {
         val kb = keyboardView ?: return
         // No live correction here (a password / email / URL field, or a non-text field). Show an
-        // empty strip — its far-left tools toggle still works, so web / translate / clipboard stay
+        // empty strip — its far-left tools toggle still works, so fix / translate / clipboard stay
         // one tap away.
         if (!correctionEnabled) { kb.setSuggestions(emptyList()); kb.setAutoShift(false); return }
         val before = currentInputConnection?.getTextBeforeCursor(CONTEXT_CHARS, 0)
@@ -603,6 +708,12 @@ class CaskKeyboardService : InputMethodService(), CaskKeyboardView.OnKeyboardAct
 
     private companion object {
         const val CONTEXT_CHARS = 96
+
+        /** Upper bound for the Fix tool, so a pathological field can't stall the fix thread. */
+        const val MAX_FIX_CHARS = 12_000
+
+        /** How far back a single word-delete step looks for the word boundary. */
+        const val WORD_DELETE_LOOKBACK = 64
 
         /** Text-field variations where autocorrect would corrupt the value, so it stays off. */
         val UNCORRECTABLE_VARIATIONS = setOf(
